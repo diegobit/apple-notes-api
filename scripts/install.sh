@@ -11,7 +11,7 @@ PLACEHOLDER="change-me-to-a-long-random-secret"
 die() { echo "Error: $1" >&2; exit 1; }
 
 # Prerequisites
-for cmd in node python3 openssl; do
+for cmd in node openssl; do
   command -v "$cmd" &>/dev/null || die "$cmd not found in PATH"
 done
 
@@ -34,20 +34,31 @@ fi
 PORT="$(grep '^NOTES_API_PORT=' "$ENV_FILE" 2>/dev/null | cut -d= -f2 | tr -d '[:space:]')"
 PORT="${PORT:-8787}"
 
-# Create venv for menubar app and install rumps into it
-VENV_DIR="$REPO_DIR/.venv-menubar"
-if [[ ! -d "$VENV_DIR" ]]; then
-  echo "Creating Python venv for menu bar app..."
-  python3 -m venv "$VENV_DIR"
-fi
-if ! "$VENV_DIR/bin/pip" show rumps &>/dev/null; then
-  echo "Installing rumps..."
-  "$VENV_DIR/bin/pip" install --quiet rumps
+# Keep the UI preference in .env so reinstalling preserves headless operation.
+MENUBAR="$(grep '^NOTES_API_MENUBAR=' "$ENV_FILE" | cut -d= -f2 | tr -d '[:space:]' || true)"
+MENUBAR="${MENUBAR:-true}"
+case "$MENUBAR" in
+  true|false) ;;
+  *) die "NOTES_API_MENUBAR must be true or false" ;;
+esac
+TIMEOUT="$(grep '^NOTES_API_OSASCRIPT_TIMEOUT_MS=' "$ENV_FILE" | cut -d= -f2 | tr -d '[:space:]' || true)"
+TIMEOUT="${TIMEOUT:-30000}"
+
+if [[ "$MENUBAR" == true ]]; then
+  command -v python3 &>/dev/null || die "python3 not found in PATH"
+  VENV_DIR="$REPO_DIR/.venv-menubar"
+  if [[ ! -d "$VENV_DIR" ]]; then
+    echo "Creating Python venv for menu bar app..."
+    python3 -m venv "$VENV_DIR"
+  fi
+  if ! "$VENV_DIR/bin/pip" show rumps &>/dev/null; then
+    echo "Installing rumps..."
+    "$VENV_DIR/bin/pip" install --quiet rumps
+  fi
+  PYTHON3_BIN="$VENV_DIR/bin/python3"
 fi
 
-# Paths
-NODE_BIN="$(which node)"
-PYTHON3_BIN="$VENV_DIR/bin/python3"
+NODE_BIN="$(command -v node)"
 
 # Unload existing agents before overwriting plists
 launchctl unload "$AGENTS_DIR/$LABEL.plist" 2>/dev/null || true
@@ -57,32 +68,36 @@ mkdir -p "$AGENTS_DIR"
 
 # Render plists to temp files, then move atomically
 TMP_SERVER="$(mktemp)"
-TMP_MB="$(mktemp)"
 
 sed \
   -e "s|__REPO_DIR__|$REPO_DIR|g" \
   -e "s|__NODE_BIN__|$NODE_BIN|g" \
   -e "s|__NOTES_API_KEY__|$API_KEY|g" \
   -e "s|__NOTES_API_PORT__|$PORT|g" \
+  -e "s|__NOTES_API_OSASCRIPT_TIMEOUT_MS__|$TIMEOUT|g" \
   -e "s|__USER__|$(whoami)|g" \
   "$REPO_DIR/launchd/$LABEL.plist.example" \
   > "$TMP_SERVER"
 
-sed \
-  -e "s|__REPO_DIR__|$REPO_DIR|g" \
-  -e "s|__PYTHON3_BIN__|$PYTHON3_BIN|g" \
-  -e "s|__NOTES_API_PORT__|$PORT|g" \
-  -e "s|__USER__|$(whoami)|g" \
-  "$REPO_DIR/launchd/$LABEL_MB.plist.example" \
-  > "$TMP_MB"
-
 mv "$TMP_SERVER" "$AGENTS_DIR/$LABEL.plist"
-mv "$TMP_MB" "$AGENTS_DIR/$LABEL_MB.plist"
 chmod 600 "$AGENTS_DIR/$LABEL.plist"
-
-# Load both agents
 launchctl load "$AGENTS_DIR/$LABEL.plist"
-launchctl load "$AGENTS_DIR/$LABEL_MB.plist"
+
+if [[ "$MENUBAR" == true ]]; then
+  TMP_MB="$(mktemp)"
+  sed \
+    -e "s|__REPO_DIR__|$REPO_DIR|g" \
+    -e "s|__PYTHON3_BIN__|$PYTHON3_BIN|g" \
+    -e "s|__NOTES_API_PORT__|$PORT|g" \
+    -e "s|__USER__|$(whoami)|g" \
+    "$REPO_DIR/launchd/$LABEL_MB.plist.example" > "$TMP_MB"
+  mv "$TMP_MB" "$AGENTS_DIR/$LABEL_MB.plist"
+  launchctl load "$AGENTS_DIR/$LABEL_MB.plist"
+else
+  # Remove the old login agent as well as stopping the running helper.
+  rm -f "$AGENTS_DIR/$LABEL_MB.plist"
+  echo "Menu bar helper disabled (no menu bar or Dock icon)."
+fi
 
 echo ""
 echo "apple-notes-api installed and running on port $PORT"

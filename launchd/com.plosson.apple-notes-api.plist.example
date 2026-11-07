@@ -24,6 +24,8 @@
       <string>127.0.0.1</string>
       <key>NOTES_API_PORT</key>
       <string>__NOTES_API_PORT__</string>
+      <key>NOTES_API_OSASCRIPT_TIMEOUT_MS</key>
+      <string>__NOTES_API_OSASCRIPT_TIMEOUT_MS__</string>
       <key>PATH</key>
       <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
     </dict>

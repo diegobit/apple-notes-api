@@ -8,7 +8,7 @@ Inspired by the MIT-licensed [sweetrb/apple-notes-mcp](https://github.com/sweetr
 
 - **macOS** with Notes.app and an account signed in (typically iCloud)
 - **Node.js ≥ 20**
-- **Python 3** (ships with macOS)
+- **Python 3** (only needed for the optional menu bar app)
 - **Automation** permission for the process that runs this server to control **Notes** (System Settings → Privacy & Security → Automation)
 - Optional: **Full Disk Access** for the `node` binary that runs the server, to return which checklist items are ticked (see [Checklists](#checklists)). Everything else works without it
 
@@ -33,7 +33,12 @@ Your API key is printed at the end. Copy it to any agent or client that needs to
 
 ## Menu bar app
 
-A small **𝐍 / N** icon appears in your menu bar:
+To run without a menu bar or Dock icon, set `NOTES_API_MENUBAR=false` in
+`.env` and re-run `./scripts/install.sh`. This stops and removes the UI helper;
+the API continues running at login. Reinstalls keep this preference and skip
+Python setup.
+
+With the helper enabled, a small **𝐍 / N** icon appears in your menu bar:
 
 - **𝐍** — server is running
 - **N** — server is stopped
@@ -57,6 +62,7 @@ Edit `.env` to change settings, then re-run `./scripts/install.sh` to apply.
 | `NOTES_API_KEY` | _(generated)_ | Bearer token for `/v1/*` |
 | `NOTES_API_HOST` | `127.0.0.1` | Bind address |
 | `NOTES_API_PORT` | `8787` | Port |
+| `NOTES_API_MENUBAR` | `true` | Install the UI helper; set `false` for no menu bar or Dock icon |
 | `NOTES_API_ALLOW_INSECURE` | unset | Set `1` to start **without** a key (local only) |
 | `NOTES_API_OSASCRIPT_TIMEOUT_MS` | `30000` | Per-call osascript timeout |
 | `NOTES_API_NOTESTORE_PATH` | `~/Library/Group Containers/group.com.apple.notes/NoteStore.sqlite` | Notes' database, read for checklist state |
